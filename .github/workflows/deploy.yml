@@ -63,7 +63,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           TEST_EMAIL="releasedesk-smoke-$(date +%s)@example.invalid"
-          HTTP_CODE=$(curl -sS -o register.json -w "%{http_code}" -c cookies.txt -H "Content-Type: application/json" --data "{\"name\":\"ReleaseDesk Smoke Test\",\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/register)\n          cat register.json\n          test "$HTTP_CODE" = "201"
+          HTTP_CODE=$(curl -sS -o register.json -w "%{http_code}" -c cookies.txt -H "Content-Type: application/json" --data "{\"name\":\"ReleaseDesk Smoke Test\",\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/register)
+          cat register.json
+          test "$HTTP_CODE" = "201"
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/me > me.json
           node -e 'const d=require("./me.json"); if(!d.user?.email) process.exit(1)'
           npx wrangler d1 execute DB --remote --command "DELETE FROM users WHERE email='$TEST_EMAIL'"
