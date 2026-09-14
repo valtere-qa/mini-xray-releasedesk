@@ -1,0 +1,4 @@
+Schlüssel;Zusammenfassung;Test Typ;Workflow Status;Aktueller Xray Status
+CON-7001;Login und Dashboard prüfen;Manual;Bereit;TO DO
+CON-7002;CSV Export prüfen;Manual;Bereit;PASSED
+CON-7003;Fehlerfall mit Jira-Ticket dokumentieren;Manual;Bereit;FAILED
