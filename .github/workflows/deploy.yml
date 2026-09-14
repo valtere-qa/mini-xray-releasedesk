@@ -56,3 +56,14 @@ jobs:
 
       - name: Verify production API
         run: curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
+
+      - name: Verify registration and authenticated session
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          TEST_EMAIL="releasedesk-smoke-$(date +%s)@example.invalid"
+          curl --fail-with-body -sS -c cookies.txt -H "Content-Type: application/json" --data "{\"name\":\"ReleaseDesk Smoke Test\",\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/register > register.json
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/me > me.json
+          node -e 'const d=require("./me.json"); if(!d.user?.email) process.exit(1)'
+          npx wrangler d1 execute DB --remote --command "DELETE FROM users WHERE email='$TEST_EMAIL'"
