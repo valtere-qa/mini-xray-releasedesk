@@ -69,4 +69,12 @@ jobs:
           test "$HTTP_CODE" = "201"
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/me > me.json
           node -e 'const d=require("./me.json"); if(!d.user?.email) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"name":"Persistence Smoke Release","executionKey":"SMOKE-1","environment":"CI"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases > release.json
+          RELEASE_ID=$(node -e 'const d=require("./release.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"SMOKE-101","summary":"D1 persistence verification","status":"TO DO"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > test.json
+          curl --fail-with-body -sS -b cookies.txt -X POST -H "Content-Type: application/json" --data '{}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/logout > logout.json
+          curl --fail-with-body -sS -c cookies.txt -H "Content-Type: application/json" --data "{\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/login > login.json
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
+          node -e 'const d=require("./persisted.json"); if(d.tests?.[0]?.test_key!=="SMOKE-101") process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > cleanup.json
           npx wrangler d1 execute DB --remote --command "DELETE FROM users WHERE email='$TEST_EMAIL'"
