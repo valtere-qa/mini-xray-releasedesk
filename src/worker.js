@@ -22,8 +22,7 @@ async function audit(db, releaseId, test, field, oldValue, newValue, note="", ac
 async function getRelease(db,id,userId){
   const release=await db.prepare("SELECT * FROM releases WHERE id=? AND user_id=?").bind(id,userId).first(); if(!release)return null;
   const cases=(await db.prepare("SELECT * FROM test_cases WHERE release_id=? ORDER BY test_key").bind(id).all()).results;
-  const ids=cases.map(x=>x.id); let steps=[];
-  if(ids.length){const marks=ids.map(()=>"?").join(",");steps=(await db.prepare(`SELECT * FROM test_steps WHERE test_case_id IN (${marks}) ORDER BY test_case_id,step_no`).bind(...ids).all()).results;}
+  const steps=(await db.prepare("SELECT s.* FROM test_steps s JOIN test_cases t ON t.id=s.test_case_id WHERE t.release_id=? ORDER BY s.test_case_id,s.step_no").bind(id).all()).results;
   const byCase=new Map();steps.forEach(s=>{if(!byCase.has(s.test_case_id))byCase.set(s.test_case_id,[]);byCase.get(s.test_case_id).push(s)});
   const defects=(await db.prepare("SELECT * FROM defects WHERE release_id=? ORDER BY created_at DESC").bind(id).all()).results;
   const evidence=(await db.prepare("SELECT id,release_id,test_case_id,test_step_id,file_name,mime_type,file_size,note,created_at FROM evidence WHERE release_id=? ORDER BY created_at DESC").bind(id).all()).results;
