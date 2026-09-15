@@ -72,9 +72,15 @@ jobs:
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"name":"Persistence Smoke Release","executionKey":"SMOKE-1","environment":"CI"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases > release.json
           RELEASE_ID=$(node -e 'const d=require("./release.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"SMOKE-101","summary":"D1 persistence verification","status":"TO DO"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > test.json
+          TEST_ID=$(node -e 'const d=require("./test.json"); const t=d.tests.find(x=>x.test_key==="SMOKE-101"); if(!t) process.exit(1); process.stdout.write(t.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"TP-SMOKE","name":"Test Plan Smoke","status":"ACTIVE"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans > plan.json
+          PLAN_ID=$(node -e 'const d=require("./plan.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TEST_ID\",\"key\":\"BUG-SMOKE\",\"summary\":\"Defect persistence verification\",\"severity\":\"Major\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects > defect.json
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TEST_ID\",\"fileName\":\"pixel.png\",\"mimeType\":\"image/png\",\"dataBase64\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/evidence > evidence.json
           curl --fail-with-body -sS -b cookies.txt -X POST -H "Content-Type: application/json" --data '{}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/logout > logout.json
           curl --fail-with-body -sS -c cookies.txt -H "Content-Type: application/json" --data "{\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/login > login.json
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
-          node -e 'const d=require("./persisted.json"); if(d.tests?.[0]?.test_key!=="SMOKE-101") process.exit(1)'
+          node -e 'const d=require("./persisted.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); if(!t||t.defects?.[0]?.defect_key!=="BUG-SMOKE"||t.evidence?.[0]?.file_name!=="pixel.png") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > cleanup.json
+          curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans/$PLAN_ID > plan-cleanup.json
           npx wrangler d1 execute DB --remote --command "DELETE FROM users WHERE email='$TEST_EMAIL'"
