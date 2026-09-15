@@ -62,6 +62,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          sleep 10
           TEST_EMAIL="releasedesk-smoke-$(date +%s)@example.invalid"
           HTTP_CODE=$(curl -sS -o register.json -w "%{http_code}" -c cookies.txt -H "Content-Type: application/json" --data "{\"name\":\"ReleaseDesk Smoke Test\",\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/register)
           cat register.json
