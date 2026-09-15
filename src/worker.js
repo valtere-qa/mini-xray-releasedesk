@@ -47,6 +47,44 @@ async function importTests(db,releaseId,payload,userId){
   await audit(db,releaseId,null,"CSV-Import","",created+" erstellt, "+updated+" aktualisiert",payload.sourceName||"");
   return json(await getRelease(db,releaseId,userId));
 }
+
+async function listReusableTests(db,userId,targetReleaseId){
+  const target=await db.prepare("SELECT id,name,execution_key FROM releases WHERE id=? AND user_id=?").bind(targetReleaseId,userId).first();
+  if(!target)return null;
+  const rows=(await db.prepare("SELECT t.id,t.test_key,t.summary,t.test_type,t.workflow_status,t.priority,t.folder_path,t.updated_at,r.id source_release_id,r.name source_release_name,r.execution_key source_execution_key,(SELECT COUNT(*) FROM test_steps s WHERE s.test_case_id=t.id) step_count FROM test_cases t JOIN releases r ON r.id=t.release_id WHERE r.user_id=? ORDER BY t.updated_at DESC,t.test_key").bind(userId).all()).results;
+  const assigned=(await db.prepare("SELECT test_key FROM test_cases WHERE release_id=?").bind(targetReleaseId).all()).results;
+  const assignedKeys=new Set(assigned.map(x=>String(x.test_key).toUpperCase())),seen=new Set(),tests=[];
+  for(const row of rows){const key=String(row.test_key).toUpperCase();if(seen.has(key))continue;seen.add(key);tests.push({...row,already_assigned:assignedKeys.has(key)});}
+  return {target,tests};
+}
+async function addExistingTests(db,userId,targetReleaseId,testIds,actor){
+  const target=await db.prepare("SELECT id FROM releases WHERE id=? AND user_id=?").bind(targetReleaseId,userId).first();
+  if(!target)throw Error("Testdurchführung nicht gefunden");
+  const ids=[...new Set((Array.isArray(testIds)?testIds:[]).map(String).filter(Boolean))];
+  if(!ids.length)throw Error("Mindestens einen Testfall auswählen");
+  if(ids.length>500)throw Error("Pro Vorgang können höchstens 500 Testfälle hinzugefügt werden");
+  let added=0,skipped=0;
+  for(const sourceId of ids){
+    const source=await db.prepare("SELECT t.* FROM test_cases t JOIN releases r ON r.id=t.release_id WHERE t.id=? AND r.user_id=?").bind(sourceId,userId).first();
+    if(!source){skipped++;continue}
+    const duplicate=await db.prepare("SELECT id FROM test_cases WHERE release_id=? AND UPPER(test_key)=UPPER(?)").bind(targetReleaseId,source.test_key).first();
+    if(duplicate){skipped++;continue}
+    const steps=(await db.prepare("SELECT * FROM test_steps WHERE test_case_id=? ORDER BY step_no").bind(source.id).all()).results;
+    const preconditions=(await db.prepare("SELECT precondition_id FROM test_case_preconditions WHERE test_case_id=?").bind(source.id).all()).results;
+    const testSets=(await db.prepare("SELECT test_set_id FROM test_set_tests WHERE test_case_id=?").bind(source.id).all()).results;
+    const id=uid(),at=iso(),statements=[
+      db.prepare("INSERT INTO test_cases (id,release_id,test_key,summary,test_type,workflow_status,original_status,local_status,sync_status,tester,comment,actual_result,defect,updated_at,precondition,requirement_key,labels,component,priority,folder_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,targetReleaseId,String(source.test_key||"").toUpperCase(),source.summary||"",source.test_type||"Manual",source.workflow_status||"READY","TO DO","TO DO","UNCHANGED","","","","",at,source.precondition||"",source.requirement_key||"",source.labels||"",source.component||"",source.priority||"Medium",source.folder_path||"")
+    ];
+    for(const step of steps)statements.push(db.prepare("INSERT INTO test_steps (id,test_case_id,step_no,action,test_data,expected_result,actual_result,status,comment) VALUES (?,?,?,?,?,?,?,?,?)").bind(uid(),id,Number(step.step_no||1),step.action||"",step.test_data||"",step.expected_result||"","","TO DO",""));
+    for(const item of preconditions)statements.push(db.prepare("INSERT OR IGNORE INTO test_case_preconditions (test_case_id,precondition_id,created_at) VALUES (?,?,?)").bind(id,item.precondition_id,at));
+    for(const item of testSets)statements.push(db.prepare("INSERT OR IGNORE INTO test_set_tests (test_set_id,test_case_id,created_at) VALUES (?,?,?)").bind(item.test_set_id,id,at));
+    await db.batch(statements);
+    await audit(db,targetReleaseId,{id,test_key:source.test_key},"Testfall","","Aus Repository hinzugefügt","Bestehender Testfall",actor||"");
+    added++;
+  }
+  return {added,skipped,release:await getRelease(db,targetReleaseId,userId)};
+}
+
 async function api(req,env){
   const url=new URL(req.url),parts=url.pathname.split("/").filter(Boolean),method=req.method;
   try{
@@ -59,6 +97,7 @@ async function api(req,env){
     const user=await currentUser(req,env.DB);
     if(url.pathname==="/api/auth/me")return user?json({user}):json({error:"Nicht angemeldet"},401);
     if(!user)return json({error:"Nicht angemeldet"},401);
+    if(url.pathname==="/api/test-library"&&method==="GET"){const data=await listReusableTests(env.DB,user.id,String(url.searchParams.get("targetReleaseId")||""));return data?json(data):json({error:"Testdurchführung nicht gefunden"},404);}
     if(url.pathname==="/api/preconditions"&&method==="GET")return json((await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM test_case_preconditions x WHERE x.precondition_id=p.id) test_count FROM preconditions p WHERE user_id=? ORDER BY updated_at DESC").bind(user.id).all()).results);
     if(url.pathname==="/api/preconditions"&&method==="POST"){const p=await body(req),id=uid(),at=iso(),key=String(p.key||"").trim().toUpperCase(),name=String(p.name||"").trim();if(!key||!name)return json({error:"Precondition-Key und Name sind erforderlich"},400);await env.DB.prepare("INSERT INTO preconditions (id,user_id,precondition_key,name,condition_text,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,user.id,key,name,p.condition||"",p.status||"ACTIVE",at,at).run();return json(await env.DB.prepare("SELECT * FROM preconditions WHERE id=?").bind(id).first(),201);}
     if(parts[1]==="preconditions"&&parts[2]){const id=parts[2],item=await env.DB.prepare("SELECT * FROM preconditions WHERE id=? AND user_id=?").bind(id,user.id).first();if(!item)return json({error:"Precondition nicht gefunden"},404);if(method==="PATCH"){const p=await body(req);await env.DB.prepare("UPDATE preconditions SET precondition_key=?,name=?,condition_text=?,status=?,updated_at=? WHERE id=?").bind(String(p.key??item.precondition_key).toUpperCase(),p.name??item.name,p.condition??item.condition_text,p.status??item.status,iso(),id).run();return json(await env.DB.prepare("SELECT * FROM preconditions WHERE id=?").bind(id).first());}if(method==="DELETE"){await env.DB.prepare("DELETE FROM preconditions WHERE id=?").bind(id).run();return json({ok:true});}}
@@ -75,6 +114,7 @@ async function api(req,env){
       if(parts.length===3&&method==="GET"){const r=await getRelease(env.DB,id,user.id);return r?json(r):json({error:"Release nicht gefunden"},404);}
       if(parts.length===3&&method==="PATCH"){const p=await body(req),current=await env.DB.prepare("SELECT * FROM releases WHERE id=?").bind(id).first(),name=String(p.name??current.name).trim();if(!name)return json({error:"Release-Name ist erforderlich"},400);await env.DB.prepare("UPDATE releases SET name=?,execution_key=?,environment=?,description=?,revision=?,start_date=?,end_date=?,plan_id=?,updated_at=? WHERE id=?").bind(name,String(p.executionKey??current.execution_key),String(p.environment??current.environment),String(p.description??current.description),String(p.revision??current.revision),String(p.startDate??current.start_date),String(p.endDate??current.end_date),p.planId===undefined?current.plan_id:(p.planId||null),iso(),id).run();await audit(env.DB,id,null,"Release",current.name,name,"Release bearbeitet",user.display_name);return json(await getRelease(env.DB,id,user.id));}
       if(parts.length===3&&method==="DELETE"){await env.DB.prepare("DELETE FROM releases WHERE id=? AND user_id=?").bind(id,user.id).run();return json({ok:true});}
+      if(parts[3]==="add-existing-tests"&&method==="POST"){const p=await body(req);return json(await addExistingTests(env.DB,user.id,id,p.testIds,user.display_name),201);}
       if(parts[3]==="tests"&&method==="POST"){const p=await body(req),key=String(p.key||p.testKey||"").trim().toUpperCase(),summary=String(p.summary||"").trim();if(!key||!summary)return json({error:"Test-Key und Zusammenfassung sind erforderlich"},400);if(await env.DB.prepare("SELECT id FROM test_cases WHERE release_id=? AND test_key=?").bind(id,key).first())return json({error:"Test-Key ist bereits vorhanden"},409);const tid=uid(),at=iso(),status=cleanStatus(p.status);await env.DB.prepare("INSERT INTO test_cases (id,release_id,test_key,summary,test_type,workflow_status,original_status,local_status,sync_status,tester,comment,actual_result,defect,updated_at,precondition,requirement_key,labels,component,priority,folder_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(tid,id,key,summary,p.testType||"Manual",p.workflowStatus||"READY",status,status,"UNCHANGED",p.tester||"",p.comment||"",p.actualResult||"",p.defect||"",at,p.precondition||"",p.requirementKey||"",p.labels||"",p.component||"",p.priority||"Medium",p.folderPath||"").run();for(const [i,s] of (p.steps||[]).entries())await env.DB.prepare("INSERT INTO test_steps (id,test_case_id,step_no,action,test_data,expected_result,actual_result,status,comment) VALUES (?,?,?,?,?,?,?,?,?)").bind(uid(),tid,i+1,s.action||"",s.data||"",s.expectedResult||"",s.actualResult||"",cleanStatus(s.status||"TO DO"),s.comment||"").run();await audit(env.DB,id,{id:tid,test_key:key},"Testfall","",summary,"Manuell erstellt",user.display_name);return json(await getRelease(env.DB,id,user.id),201);}
       if(parts[3]==="import"&&method==="POST")return importTests(env.DB,id,await body(req),user.id);
       if(parts[3]==="audit"&&method==="GET")return json((await env.DB.prepare("SELECT * FROM audit_log WHERE release_id=? ORDER BY created_at DESC LIMIT 1000").bind(id).all()).results);
