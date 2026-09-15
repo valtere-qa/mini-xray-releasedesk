@@ -27,7 +27,9 @@ async function getRelease(db,id,userId){
   const byCase=new Map();steps.forEach(s=>{if(!byCase.has(s.test_case_id))byCase.set(s.test_case_id,[]);byCase.get(s.test_case_id).push(s)});
   const defects=(await db.prepare("SELECT * FROM defects WHERE release_id=? ORDER BY created_at DESC").bind(id).all()).results;
   const evidence=(await db.prepare("SELECT id,release_id,test_case_id,test_step_id,file_name,mime_type,file_size,note,created_at FROM evidence WHERE release_id=? ORDER BY created_at DESC").bind(id).all()).results;
-  cases.forEach(t=>{t.steps=byCase.get(t.id)||[];t.defects=defects.filter(d=>d.test_case_id===t.id);t.evidence=evidence.filter(e=>e.test_case_id===t.id&&!e.test_step_id);t.steps.forEach(s=>s.evidence=evidence.filter(e=>e.test_step_id===s.id));});
+  const preconditions=(await db.prepare("SELECT x.test_case_id,p.id,p.precondition_key,p.name,p.condition_text,p.status FROM test_case_preconditions x JOIN preconditions p ON p.id=x.precondition_id JOIN test_cases t ON t.id=x.test_case_id WHERE t.release_id=? ORDER BY p.precondition_key").bind(id).all()).results;
+  const testSets=(await db.prepare("SELECT x.test_case_id,s.id,s.set_key,s.name,s.status FROM test_set_tests x JOIN test_sets s ON s.id=x.test_set_id JOIN test_cases t ON t.id=x.test_case_id WHERE t.release_id=? ORDER BY s.set_key").bind(id).all()).results;
+  cases.forEach(t=>{t.steps=byCase.get(t.id)||[];t.defects=defects.filter(d=>d.test_case_id===t.id);t.evidence=evidence.filter(e=>e.test_case_id===t.id&&!e.test_step_id);t.preconditions=preconditions.filter(p=>p.test_case_id===t.id);t.test_sets=testSets.filter(s=>s.test_case_id===t.id);t.steps.forEach(s=>s.evidence=evidence.filter(e=>e.test_step_id===s.id));});
   return {...release,tests:cases,defects};
 }
 async function importTests(db,releaseId,payload,userId){
