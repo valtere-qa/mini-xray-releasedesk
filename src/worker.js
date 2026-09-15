@@ -30,13 +30,18 @@ async function getRelease(db,id,userId){
 async function importTests(db,releaseId,payload,userId){
   const release=await db.prepare("SELECT * FROM releases WHERE id=? AND user_id=?").bind(releaseId,userId).first();if(!release)return json({error:"Release nicht gefunden"},404);
   const tests=Array.isArray(payload.tests)?payload.tests:[];if(!tests.length)return json({error:"Keine Testfälle übermittelt"},400);
-  const at=iso();const statements=[];
-  statements.push(db.prepare("DELETE FROM audit_log WHERE release_id=?").bind(releaseId));
-  statements.push(db.prepare("DELETE FROM test_steps WHERE test_case_id IN (SELECT id FROM test_cases WHERE release_id=?)").bind(releaseId));
-  statements.push(db.prepare("DELETE FROM test_cases WHERE release_id=?").bind(releaseId));
-  statements.push(db.prepare("UPDATE releases SET source_name=?,updated_at=? WHERE id=?").bind(payload.sourceName||"Xray CSV",at,releaseId));
-  for(const raw of tests){const id=uid(),status=cleanStatus(raw.status||raw.local_status);statements.push(db.prepare("INSERT INTO test_cases (id,release_id,test_key,summary,test_type,workflow_status,original_status,local_status,sync_status,tester,comment,actual_result,defect,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,releaseId,String(raw.key||raw.test_key||"").trim(),String(raw.summary||"").trim(),raw.testType||raw.test_type||"Manual",raw.workflowStatus||raw.workflow_status||"",status,status,"UNCHANGED",raw.tester||"",raw.comment||"",raw.actualResult||raw.actual_result||"",raw.defect||"",at));for(const [i,s] of (raw.steps||[]).entries())statements.push(db.prepare("INSERT INTO test_steps (id,test_case_id,step_no,action,test_data,expected_result,actual_result) VALUES (?,?,?,?,?,?,?)").bind(uid(),id,Number(s.number||s.step_no||i+1),s.action||"",s.data||s.test_data||"",s.expectedResult||s.expected_result||"",s.actualResult||s.actual_result||""));}
-  await db.batch(statements);await audit(db,releaseId,null,"CSV-Import","",`${tests.length} Testfälle`,payload.sourceName||"");return json(await getRelease(db,releaseId,userId));
+  const at=iso();let created=0,updated=0;
+  for(const raw of tests){
+    const key=String(raw.key||raw.test_key||"").trim();if(!key)continue;
+    const status=cleanStatus(raw.status||raw.local_status),existing=await db.prepare("SELECT * FROM test_cases WHERE release_id=? AND test_key=?").bind(releaseId,key).first();
+    let id;
+    if(existing){id=existing.id;const localChanged=existing.local_status!==existing.original_status;await db.prepare("UPDATE test_cases SET summary=?,test_type=?,workflow_status=?,original_status=?,local_status=?,sync_status=?,updated_at=? WHERE id=?").bind(String(raw.summary||existing.summary).trim(),raw.testType||raw.test_type||existing.test_type,raw.workflowStatus||raw.workflow_status||existing.workflow_status,status,localChanged?existing.local_status:status,localChanged?"CHANGED":"UNCHANGED",at,id).run();updated++;}
+    else{id=uid();await db.prepare("INSERT INTO test_cases (id,release_id,test_key,summary,test_type,workflow_status,original_status,local_status,sync_status,tester,comment,actual_result,defect,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,releaseId,key,String(raw.summary||"").trim(),raw.testType||raw.test_type||"Manual",raw.workflowStatus||raw.workflow_status||"",status,status,"UNCHANGED",raw.tester||"",raw.comment||"",raw.actualResult||raw.actual_result||"",raw.defect||"",at).run();created++;}
+    for(const [i,s] of (raw.steps||[]).entries()){const n=Number(s.number||s.step_no||i+1),step=await db.prepare("SELECT id,actual_result FROM test_steps WHERE test_case_id=? AND step_no=?").bind(id,n).first();if(step)await db.prepare("UPDATE test_steps SET action=?,test_data=?,expected_result=? WHERE id=?").bind(s.action||"",s.data||s.test_data||"",s.expectedResult||s.expected_result||"",step.id).run();else await db.prepare("INSERT INTO test_steps (id,test_case_id,step_no,action,test_data,expected_result,actual_result) VALUES (?,?,?,?,?,?,?)").bind(uid(),id,n,s.action||"",s.data||s.test_data||"",s.expectedResult||s.expected_result||"",s.actualResult||s.actual_result||"").run();}
+  }
+  await db.prepare("UPDATE releases SET source_name=?,updated_at=? WHERE id=?").bind(payload.sourceName||"Xray CSV",at,releaseId).run();
+  await audit(db,releaseId,null,"CSV-Import","",created+" erstellt, "+updated+" aktualisiert",payload.sourceName||"");
+  return json(await getRelease(db,releaseId,userId));
 }
 async function api(req,env){
   const url=new URL(req.url),parts=url.pathname.split("/").filter(Boolean),method=req.method;
