@@ -57,7 +57,13 @@ jobs:
       - name: Verify production API and dialogs
         run: |
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
-          curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/ > ui.html
+          for ATTEMPT in {1..10}; do
+            curl --fail-with-body --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/?deployment=$GITHUB_SHA&attempt=$ATTEMPT" > ui.html
+            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html; then
+              break
+            fi
+            sleep 3
+          done
           grep -Fq 'id="confirmActionModal"' ui.html
           grep -Fq 'function askConfirmation' ui.html
           grep -Fq 'id="appTooltip"' ui.html
