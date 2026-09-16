@@ -60,6 +60,9 @@ jobs:
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/ > ui.html
           grep -Fq 'id="confirmActionModal"' ui.html
           grep -Fq 'function askConfirmation' ui.html
+          grep -Fq 'id="appTooltip"' ui.html
+          grep -Fq 'data-tooltip="Testdurchführung bearbeiten:' ui.html
+          grep -Fq 'function showAppTooltip' ui.html
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
       - name: Verify registration and authenticated session
