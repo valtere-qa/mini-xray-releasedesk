@@ -79,6 +79,16 @@ jobs:
           node -e 'const d=require("./timer-stop.json"); const t=d.tests?.find(x=>x.id===process.argv[1]); if(!t||t.timer_started_at!==null||Number(t.execution_time_seconds)<1||!t.last_executed_at) process.exit(1)' "$TEST_ID"
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"TP-SMOKE","name":"Test Plan Smoke","status":"ACTIVE"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans > plan.json
           PLAN_ID=$(node -e 'const d=require("./plan.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"TP-SMOKE-NEW","name":"Replacement Plan Smoke","status":"ACTIVE"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans > plan-new.json
+          PLAN_NEW_ID=$(node -e 'const d=require("./plan-new.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"name":"Replacement Execution Smoke","executionKey":"SMOKE-2","environment":"CI"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases > release-new.json
+          REPLACEMENT_RELEASE_ID=$(node -e 'const d=require("./release-new.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
+          curl --fail-with-body -sS -b cookies.txt -X PATCH -H "Content-Type: application/json" --data "{\"planId\":\"$PLAN_ID\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > plan-assignment.json
+          node -e 'const d=require("./plan-assignment.json"); if(d.plan_id!==process.argv[1]) process.exit(1)' "$PLAN_ID"
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"replacementReleaseId\":\"$REPLACEMENT_RELEASE_ID\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/replace-in-plan > execution-replacement.json
+          node -e 'const d=require("./execution-replacement.json"); if(d.current?.plan_id!==null||d.replacement?.plan_id!==process.argv[1]) process.exit(1)' "$PLAN_ID"
+          curl --fail-with-body -sS -b cookies.txt -X PATCH -H "Content-Type: application/json" --data "{\"planId\":\"$PLAN_NEW_ID\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$REPLACEMENT_RELEASE_ID > plan-switch.json
+          node -e 'const d=require("./plan-switch.json"); if(d.plan_id!==process.argv[1]) process.exit(1)' "$PLAN_NEW_ID"
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"stepNo\":1,\"action\":\"Login durchführen\",\"data\":\"qa.user@example.test\",\"expectedResult\":\"Dashboard sichtbar\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/tests/$TEST_ID/steps > step.json
           STEP_ID=$(node -e 'const d=require("./step.json"); const t=d.tests.find(x=>x.id===process.argv[1]); if(!t?.steps?.[0]?.id) process.exit(1); process.stdout.write(t.steps[0].id)' "$TEST_ID")
           curl --fail-with-body -sS -b cookies.txt -X PATCH -H "Content-Type: application/json" --data '{"status":"PASSED","actualResult":"Dashboard wurde angezeigt","comment":"Smoke Test erfolgreich"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/steps/$STEP_ID > step-status.json
@@ -95,7 +105,9 @@ jobs:
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
           node -e 'const d=require("./persisted.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); const s=t?.steps?.[0]; if(!t||t.defects?.[0]?.defect_key!=="BUG-SMOKE"||t.evidence?.[0]?.file_name!=="pixel.png"||s?.status!=="PASSED"||s?.actual_result!=="Dashboard wurde angezeigt"||t.preconditions?.[0]?.precondition_key!=="PRE-SMOKE"||t.test_sets?.[0]?.set_key!=="TS-SMOKE"||Number(t.execution_time_seconds)<1||!t.last_executed_at||t.timer_started_at!==null) process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > cleanup.json
+          curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$REPLACEMENT_RELEASE_ID > replacement-cleanup.json
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans/$PLAN_ID > plan-cleanup.json
+          curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans/$PLAN_NEW_ID > plan-new-cleanup.json
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/preconditions/$PRECONDITION_ID > precondition-cleanup.json
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/test-sets/$TEST_SET_ID > testset-cleanup.json
           npx wrangler d1 execute DB --remote --command "DELETE FROM users WHERE email='$TEST_EMAIL'"
