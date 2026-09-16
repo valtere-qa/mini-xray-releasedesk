@@ -63,6 +63,11 @@ jobs:
           grep -Fq 'id="appTooltip"' ui.html
           grep -Fq 'data-tooltip="Testdurchführung bearbeiten:' ui.html
           grep -Fq 'function showAppTooltip' ui.html
+          grep -Fq 'id="bootShell"' ui.html
+          grep -Fq 'class="auth-shell hidden"' ui.html
+          grep -Fq 'function verifySession' ui.html
+          grep -Fq 'function logoutImmediately' ui.html
+          if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
       - name: Verify registration and authenticated session
