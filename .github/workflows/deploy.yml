@@ -104,6 +104,12 @@ jobs:
           curl --fail-with-body -sS -c cookies.txt -H "Content-Type: application/json" --data "{\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/login > login.json
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
           node -e 'const d=require("./persisted.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); const s=t?.steps?.[0]; if(!t||t.defects?.[0]?.defect_key!=="BUG-SMOKE"||t.evidence?.[0]?.file_name!=="pixel.png"||s?.status!=="PASSED"||s?.actual_result!=="Dashboard wurde angezeigt"||t.preconditions?.[0]?.precondition_key!=="PRE-SMOKE"||t.test_sets?.[0]?.set_key!=="TS-SMOKE"||Number(t.execution_time_seconds)<1||!t.last_executed_at||t.timer_started_at!==null) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > reset-tests.json
+          node -e 'const d=require("./reset-tests.json"); if(!d.ok||Number(d.deleted)!==1) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > reset-release.json
+          node -e 'const d=require("./reset-release.json"); if(!Array.isArray(d.tests)||d.tests.length!==0) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/audit > reset-audit.json
+          node -e 'const d=require("./reset-audit.json"); if(!d.some(x=>x.field==="Testfälle geleert"&&x.old_value==="1"&&x.new_value==="0")) process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > cleanup.json
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$REPLACEMENT_RELEASE_ID > replacement-cleanup.json
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/plans/$PLAN_ID > plan-cleanup.json
