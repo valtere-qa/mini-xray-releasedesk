@@ -97,6 +97,17 @@ async function api(req,env){
     const user=await currentUser(req,env.DB);
     if(url.pathname==="/api/auth/me")return user?json({user}):json({error:"Nicht angemeldet"},401);
     if(!user)return json({error:"Nicht angemeldet"},401);
+    if(url.pathname==="/api/preferences"&&method==="GET"){
+      const preferences=await env.DB.prepare("SELECT accent_color,updated_at FROM user_preferences WHERE user_id=?").bind(user.id).first();
+      return json({accentColor:preferences?.accent_color||"#0C66E4",updatedAt:preferences?.updated_at||null});
+    }
+    if(url.pathname==="/api/preferences"&&method==="PATCH"){
+      const p=await body(req),accentColor=String(p.accentColor||"").trim().toUpperCase();
+      if(!/^#[0-9A-F]{6}$/.test(accentColor))return json({error:"Die Akzentfarbe muss als sechsstelliger Hex-Wert angegeben werden."},400);
+      const at=iso();
+      await env.DB.prepare("INSERT INTO user_preferences (user_id,accent_color,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET accent_color=excluded.accent_color,updated_at=excluded.updated_at").bind(user.id,accentColor,at).run();
+      return json({accentColor,updatedAt:at});
+    }
     if(url.pathname==="/api/test-library"&&method==="GET"){const data=await listReusableTests(env.DB,user.id,String(url.searchParams.get("targetReleaseId")||""));return data?json(data):json({error:"Testdurchführung nicht gefunden"},404);}
     if(url.pathname==="/api/test-catalog"&&method==="GET")return json((await env.DB.prepare("SELECT t.id,t.test_key,t.summary,t.test_type,t.workflow_status,t.priority,t.folder_path,t.local_status,t.original_status,t.sync_status,t.tester,t.updated_at,r.id source_release_id,r.name source_release_name,r.execution_key source_execution_key,(SELECT COUNT(*) FROM test_steps s WHERE s.test_case_id=t.id) step_count FROM test_cases t JOIN releases r ON r.id=t.release_id WHERE r.user_id=? ORDER BY t.test_key COLLATE NOCASE,r.updated_at DESC").bind(user.id).all()).results);
     if(url.pathname==="/api/preconditions"&&method==="GET")return json((await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM test_case_preconditions x WHERE x.precondition_id=p.id) test_count FROM preconditions p WHERE user_id=? ORDER BY updated_at DESC").bind(user.id).all()).results);

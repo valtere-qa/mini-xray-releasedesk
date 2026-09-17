@@ -76,6 +76,9 @@ jobs:
           grep -Fq 'Mobile full-page scroll safety' ui.html
           grep -Fq 'padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))!important' ui.html
           grep -Fq '.modal.open{overflow-x:hidden;overflow-y:auto' ui.html
+          grep -Fq 'id="sideTheme"' ui.html
+          grep -Fq 'id="settingsModal"' ui.html
+          grep -Fq 'function applyThemeColor' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
@@ -91,6 +94,8 @@ jobs:
           test "$HTTP_CODE" = "201"
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/me > me.json
           node -e 'const d=require("./me.json"); if(!d.user?.email) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt -X PATCH -H "Content-Type: application/json" --data '{"accentColor":"#6554C0"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/preferences > preferences.json
+          node -e 'const d=require("./preferences.json"); if(d.accentColor!=="#6554C0") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"name":"Persistence Smoke Release","executionKey":"SMOKE-1","environment":"CI"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases > release.json
           RELEASE_ID=$(node -e 'const d=require("./release.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"SMOKE-101","summary":"D1 persistence verification","status":"TO DO"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > test.json
@@ -124,6 +129,8 @@ jobs:
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TEST_ID\",\"fileName\":\"pixel.png\",\"mimeType\":\"image/png\",\"dataBase64\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/evidence > evidence.json
           curl --fail-with-body -sS -b cookies.txt -X POST -H "Content-Type: application/json" --data '{}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/logout > logout.json
           curl --fail-with-body -sS -c cookies.txt -H "Content-Type: application/json" --data "{\"email\":\"$TEST_EMAIL\",\"password\":\"ReleaseDesk123\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/login > login.json
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/preferences > persisted-preferences.json
+          node -e 'const d=require("./persisted-preferences.json"); if(d.accentColor!=="#6554C0") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
           node -e 'const d=require("./persisted.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); const s=t?.steps?.[0]; if(!t||t.defects?.[0]?.defect_key!=="BUG-SMOKE"||t.evidence?.[0]?.file_name!=="pixel.png"||s?.status!=="PASSED"||s?.actual_result!=="Dashboard wurde angezeigt"||t.preconditions?.[0]?.precondition_key!=="PRE-SMOKE"||t.test_sets?.[0]?.set_key!=="TS-SMOKE"||Number(t.execution_time_seconds)<1||!t.last_executed_at||t.timer_started_at!==null) process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > reset-tests.json

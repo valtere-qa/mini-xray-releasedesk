@@ -11,6 +11,7 @@ Professionelles Cloudflare-Fallback für Release-Testphasen, wenn Xray vorüberg
 - Audit-Log und Xray-Abgleich mit Konflikterkennung
 - Suche, Filter und Bulk-Statusänderung
 - Cloudflare D1 für geräteübergreifende Speicherung
+- Kontobezogene Farbkonfiguration mit Live-Vorschau und D1-Persistenz
 - Responsive Oberfläche für Desktop, Tablet und Mobile
 
 ## Installation
