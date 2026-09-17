@@ -59,7 +59,7 @@ jobs:
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
           for ATTEMPT in {1..10}; do
             curl --fail-with-body --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/?deployment=$GITHUB_SHA&attempt=$ATTEMPT" > ui.html
-            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html; then
+            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html; then
               break
             fi
             sleep 3
