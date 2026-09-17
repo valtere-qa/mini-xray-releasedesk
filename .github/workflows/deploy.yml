@@ -73,6 +73,9 @@ jobs:
           grep -Fq 'class="auth-shell hidden"' ui.html
           grep -Fq 'function verifySession' ui.html
           grep -Fq 'function logoutImmediately' ui.html
+          grep -Fq 'Mobile full-page scroll safety' ui.html
+          grep -Fq 'padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))!important' ui.html
+          grep -Fq '.modal.open{overflow-x:hidden;overflow-y:auto' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
