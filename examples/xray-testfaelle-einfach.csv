@@ -1,4 +1,4 @@
-Schlüssel;Zusammenfassung;Test Typ;Workflow Status;Aktueller Xray Status
-CON-7001;Login und Dashboard prüfen;Manual;Bereit;TO DO
-CON-7002;CSV Export prüfen;Manual;Bereit;PASSED
-CON-7003;Fehlerfall mit Jira-Ticket dokumentieren;Manual;Bereit;FAILED
+Issue Id;Issue Key;Summary;Test Type;Test Repository Path;Workflow Status;Priority;Test Run Status;Executed By;Comment;Actual Result;Defects
+CON-7001;CON-7001;Login und Dashboard prüfen;Manual;Regression/Login;Bereit;High;TODO;;;;
+CON-7002;CON-7002;CSV Export prüfen;Manual;Regression/Export;Bereit;Medium;PASS;QA Team;Export erfolgreich;CSV wurde erstellt;
+CON-7003;CON-7003;Fehlerfall mit Jira-Ticket dokumentieren;Manual;Regression/Fehlerfälle;Bereit;Highest;FAIL;QA Team;Fehler reproduziert;Validierung fehlt;BUG-7003

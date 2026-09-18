@@ -1,6 +1,6 @@
-Schlüssel;Zusammenfassung;Test Typ;Workflow Status;Aktueller Xray Status;Schritt;Action;Data;Expected Result;Step Actual Result
-CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TO DO;1;Anmeldeseite öffnen;;Anmeldemaske wird angezeigt;
-CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TO DO;2;Benutzerdaten eingeben;qa.user / gültiges Passwort;Eingaben werden akzeptiert;
-CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TO DO;3;Anmelden auswählen;;Dashboard wird angezeigt;
-CON-7102;CSV Export prüfen;Manual;Bereit;EXECUTING;1;Testfälle nach PASSED filtern;Status PASSED;Nur bestandene Testfälle erscheinen;
-CON-7102;CSV Export prüfen;Manual;Bereit;EXECUTING;2;Xray CSV exportieren;;CSV enthält Status und Testschritte;
+Issue Id;Issue Key;Summary;Test Type;Workflow Status;Test Run Status;Step;Action;Data;Expected Result;Step Status;Step Actual Result;Step Comment
+CON-7101;CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TODO;1;Anmeldeseite öffnen;;Anmeldemaske wird angezeigt;PASS;Anmeldemaske ist sichtbar;
+CON-7101;CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TODO;2;Benutzerdaten eingeben;qa.user / gültiges Passwort;Eingaben werden akzeptiert;TODO;;
+CON-7101;CON-7101;Login mit gültigem Benutzer;Manual;Bereit;TODO;3;Anmelden auswählen;;Dashboard wird angezeigt;TODO;;
+CON-7102;CON-7102;CSV Export prüfen;Manual;Bereit;EXECUTING;1;Testfälle nach PASSED filtern;Status PASSED;Nur bestandene Testfälle erscheinen;PASS;Filter funktioniert;
+CON-7102;CON-7102;CSV Export prüfen;Manual;Bereit;EXECUTING;2;Xray CSV exportieren;;CSV enthält Status und Testschritte;EXECUTING;;Export wird geprüft

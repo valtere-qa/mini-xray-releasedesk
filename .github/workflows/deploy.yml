@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - run: npm test
 
       - name: Validate Cloudflare secrets
         env:
@@ -59,7 +60,7 @@ jobs:
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
           for ATTEMPT in {1..10}; do
             curl --fail-with-body --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/?deployment=$GITHUB_SHA&attempt=$ATTEMPT" > ui.html
-            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html; then
+            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html && grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html; then
               break
             fi
             sleep 3
@@ -79,6 +80,9 @@ jobs:
           grep -Fq 'id="sideTheme"' ui.html
           grep -Fq 'id="settingsModal"' ui.html
           grep -Fq 'function applyThemeColor' ui.html
+          grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html
+          grep -Fq '"Issue Id","Issue Key","Summary","Test Type"' ui.html
+          grep -Fq 'id="xrayTemplateBtn"' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
@@ -100,6 +104,8 @@ jobs:
           RELEASE_ID=$(node -e 'const d=require("./release.json"); if(!d.id) process.exit(1); process.stdout.write(d.id)')
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"SMOKE-101","summary":"D1 persistence verification","status":"TO DO"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > test.json
           TEST_ID=$(node -e 'const d=require("./test.json"); const t=d.tests.find(x=>x.test_key==="SMOKE-101"); if(!t) process.exit(1); process.stdout.write(t.id)')
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"sourceName":"xray-roundtrip.csv","metadata":{"executionKey":"SMOKE-1","environment":"CI"},"tests":[{"key":"SMOKE-101","summary":"D1 persistence verification","testType":"Manual","workflowStatus":"READY","originalStatus":"TODO","localStatus":"PASS","priority":"High","folderPath":"Regression/Smoke","precondition":"Benutzer ist aktiv","requirementKey":"REQ-SMOKE","labels":"smoke,roundtrip","component":"Portal","tester":"Smoke Tester","comment":"Aus Xray CSV importiert","actualResult":"Dashboard sichtbar","defect":"BUG-CSV"}]}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/import > csv-import.json
+          node -e 'const d=require("./csv-import.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); if(!t||t.original_status!=="TO DO"||t.local_status!=="PASSED"||t.sync_status!=="CHANGED"||t.priority!=="High"||t.folder_path!=="Regression/Smoke"||t.requirement_key!=="REQ-SMOKE"||t.component!=="Portal"||t.defect!=="BUG-CSV") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"action":"start"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/tests/$TEST_ID/timer > timer-start.json
           sleep 1
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"action":"stop"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/tests/$TEST_ID/timer > timer-stop.json
@@ -133,6 +139,8 @@ jobs:
           node -e 'const d=require("./persisted-preferences.json"); if(d.accentColor!=="#6554C0") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > persisted.json
           node -e 'const d=require("./persisted.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); const s=t?.steps?.[0]; if(!t||t.defects?.[0]?.defect_key!=="BUG-SMOKE"||t.evidence?.[0]?.file_name!=="pixel.png"||s?.status!=="PASSED"||s?.actual_result!=="Dashboard wurde angezeigt"||t.preconditions?.[0]?.precondition_key!=="PRE-SMOKE"||t.test_sets?.[0]?.set_key!=="TS-SMOKE"||Number(t.execution_time_seconds)<1||!t.last_executed_at||t.timer_started_at!==null) process.exit(1)'
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"sourceName":"xray-definition-only.csv","tests":[{"key":"SMOKE-101","summary":"D1 persistence verification","testType":"Manual"}]}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/import > definition-import.json
+          node -e 'const d=require("./definition-import.json"); const t=d.tests?.find(x=>x.test_key==="SMOKE-101"); const s=t?.steps?.[0]; if(!t||t.local_status!=="EXECUTING"||t.priority!=="High"||t.folder_path!=="Regression/Smoke"||t.requirement_key!=="REQ-SMOKE"||t.defect!=="BUG-CSV"||s?.status!=="PASSED"||s?.actual_result!=="Dashboard wurde angezeigt") process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt -X DELETE https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID/tests > reset-tests.json
           node -e 'const d=require("./reset-tests.json"); if(!d.ok||Number(d.deleted)!==1) process.exit(1)'
           curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$RELEASE_ID > reset-release.json

@@ -4,7 +4,8 @@ Professionelles Cloudflare-Fallback für Release-Testphasen, wenn Xray vorüberg
 
 ## Kernfunktionen
 
-- Xray-kompatibler CSV-Import und CSV-Re-Export
+- Bidirektionaler Xray-/Jira-CSV-Austausch: Exporte importieren, in Mini Xray bearbeiten und im Xray-Test-Case-Importer-Profil re-exportieren
+- Flexible Spaltenzuordnung für Xray Cloud sowie Server/Data Center, Statusübersetzung (TODO/PASS/FAIL) und manuelle Testschritte
 - Status: TO DO, EXECUTING, PASSED, FAILED, BLOCKED, ABORTED
 - Original-Xray-Status und lokaler Status getrennt
 - Testschritte, Tester, Kommentare, Actual Result und Jira-/Defect-Ticket
