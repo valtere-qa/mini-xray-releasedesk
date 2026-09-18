@@ -83,6 +83,8 @@ jobs:
           grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html
           grep -Fq '"Issue Id","Issue Key","Summary","Test Type"' ui.html
           grep -Fq 'id="xrayTemplateBtn"' ui.html
+          grep -Fq 'class="test-title-open detail"' ui.html
+          grep -Fq '.execution-table th:last-child,.execution-table td:last-child{position:sticky' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
