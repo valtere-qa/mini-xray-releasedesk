@@ -60,7 +60,7 @@ jobs:
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
           for ATTEMPT in {1..10}; do
             curl --fail-with-body --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/?deployment=$GITHUB_SHA&attempt=$ATTEMPT" > ui.html
-            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html && grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html && grep -Fq '.execution-table th:nth-child(9),.execution-table td:nth-child(9),.execution-table th:last-child,.execution-table td:last-child{position:sticky' ui.html && grep -Fq 'Mobile execution card and scroll stabilization' ui.html && grep -Fq 'Always available existing bug list' ui.html; then
+            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html && grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html && grep -Fq '.execution-table th:nth-child(9),.execution-table td:nth-child(9),.execution-table th:last-child,.execution-table td:last-child{position:sticky' ui.html && grep -Fq 'Mobile execution card and scroll stabilization' ui.html && grep -Fq 'Always available system-wide bug list' ui.html; then
               break
             fi
             sleep 3
@@ -97,9 +97,11 @@ jobs:
           grep -Fq 'id="bugModeExisting"' ui.html
           grep -Fq 'id="bugModeNew"' ui.html
           grep -Fq 'id="existingBugStepSelect"' ui.html
-          grep -Fq 'Always available existing bug list' ui.html
+          grep -Fq 'Always available system-wide bug list' ui.html
           grep -Fq 'function populateExistingBugList' ui.html
           grep -Fq 'function refreshExistingBugStepOptions' ui.html
+          grep -Fq 'Alle im System vorhandenen Bugs anzeigen' ui.html
+          grep -Fq 'Ohne Testschritt · nur dem Testfall zuordnen' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
@@ -153,6 +155,12 @@ jobs:
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TEST_ID\",\"testStepId\":\"$STEP_ID\",\"key\":\"BUG-SMOKE\",\"summary\":\"Defect persistence verification\",\"severity\":\"Major\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects > defect.json
           DEFECT_ID=$(node -e 'const d=require("./defect.json"); const t=d.tests.find(x=>x.id===process.argv[1]); const defect=t?.defects?.find(x=>x.defect_key==="BUG-SMOKE"); if(!defect?.id) process.exit(1); process.stdout.write(defect.id)' "$TEST_ID")
           curl --fail-with-body -sS -b cookies.txt -X PATCH -H "Content-Type: application/json" --data '{"summary":"Defect persistence verification updated","severity":"Critical","status":"IN PROGRESS"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects/$DEFECT_ID > defect-edit.json
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data '{"key":"SMOKE-202","summary":"Systemweite Bug-Zuordnung","status":"TO DO"}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/releases/$REPLACEMENT_RELEASE_ID/tests > target-test.json
+          TARGET_TEST_ID=$(node -e 'const d=require("./target-test.json"); const t=d.tests.find(x=>x.test_key==="SMOKE-202"); if(!t?.id) process.exit(1); process.stdout.write(t.id)')
+          curl --fail-with-body -sS -b cookies.txt https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects > defect-catalog.json
+          node -e 'const d=require("./defect-catalog.json"); const bug=d.find(x=>x.id===process.argv[1]); if(!bug||bug.defect_key!=="BUG-SMOKE"||bug.source_test_key!=="SMOKE-101"||!Array.isArray(bug.test_case_ids)) process.exit(1)' "$DEFECT_ID"
+          curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TARGET_TEST_ID\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects/$DEFECT_ID/tests > defect-test-link.json
+          node -e 'const d=require("./defect-test-link.json"); const t=d.tests.find(x=>x.id===process.argv[1]),bug=t?.defects?.find(x=>x.id===process.argv[2]); if(!t||!bug||bug.step_ids.length!==0) process.exit(1)' "$TARGET_TEST_ID" "$DEFECT_ID"
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testStepId\":\"$SECOND_STEP_ID\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/defects/$DEFECT_ID/steps > defect-link.json
           curl --fail-with-body -sS -b cookies.txt -H "Content-Type: application/json" --data "{\"testCaseId\":\"$TEST_ID\",\"fileName\":\"pixel.png\",\"mimeType\":\"image/png\",\"dataBase64\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}" https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/evidence > evidence.json
           curl --fail-with-body -sS -b cookies.txt -X POST -H "Content-Type: application/json" --data '{}' https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/auth/logout > logout.json
