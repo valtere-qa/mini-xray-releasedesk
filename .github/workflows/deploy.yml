@@ -60,7 +60,7 @@ jobs:
           curl --fail-with-body --retry 5 --retry-delay 2 https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/api/health
           for ATTEMPT in {1..10}; do
             curl --fail-with-body --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://mini-xray-releasedesk.vafa-qa-engineering.workers.dev/?deployment=$GITHUB_SHA&attempt=$ATTEMPT" > ui.html
-            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html && grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html && grep -Fq '.execution-table th:nth-child(9),.execution-table td:nth-child(9),.execution-table th:last-child,.execution-table td:last-child{position:sticky' ui.html && grep -Fq 'Mobile execution card and scroll stabilization' ui.html && grep -Fq 'Visible bug creation mode chooser' ui.html; then
+            if grep -Fq 'id="bootShell"' ui.html && grep -Fq 'function verifySession' ui.html && grep -Fq 'function logoutImmediately' ui.html && grep -Fq 'id="settingsModal"' ui.html && grep -Fq 'function applyThemeColor' ui.html && grep -Fq 'XRAY_CSV_PROFILE_VERSION="2.0"' ui.html && grep -Fq '.execution-table th:nth-child(9),.execution-table td:nth-child(9),.execution-table th:last-child,.execution-table td:last-child{position:sticky' ui.html && grep -Fq 'Mobile execution card and scroll stabilization' ui.html && grep -Fq 'Always available existing bug list' ui.html; then
               break
             fi
             sleep 3
@@ -97,6 +97,9 @@ jobs:
           grep -Fq 'id="bugModeExisting"' ui.html
           grep -Fq 'id="bugModeNew"' ui.html
           grep -Fq 'id="existingBugStepSelect"' ui.html
+          grep -Fq 'Always available existing bug list' ui.html
+          grep -Fq 'function populateExistingBugList' ui.html
+          grep -Fq 'function refreshExistingBugStepOptions' ui.html
           if grep -Fq '(async()=>{showAuth();' ui.html; then echo "Login-Flash-Bootstrap gefunden" && exit 1; fi
           if grep -Fq 'confirm(' ui.html; then echo "Native Browser-Bestätigung gefunden" && exit 1; fi
 
